@@ -10,7 +10,7 @@ DB_FILE = 'personajes.json'
 # Inicializamos el JSON con la estructura completa si no existe
 if not os.path.exists(DB_FILE):
     with open(DB_FILE, 'w') as f:
-        json.dump({"ocupados": [], "deseados": [], "actividad": {}}, f)
+        json.dump({"ocupados": {}, "deseados": [], "actividad": {}}, f)
 
 def cargar_datos():
     with open(DB_FILE, 'r') as f:
@@ -107,8 +107,16 @@ async def po_add(interaction: discord.Interaction, personaje: str, usuario: disc
 async def po_del(interaction: discord.Interaction, personaje: str):
     datos = cargar_datos()
     personaje = personaje.title()
-    if personaje in datos["ocupados"]:
-        datos["ocupados"].remove(personaje)
+    
+    # Buscamos qué usuario tiene este personaje
+    usuario_a_borrar = None
+    for uid, pj in datos["ocupados"].items():
+        if pj == personaje:
+            usuario_a_borrar = uid
+            break
+
+    if usuario_a_borrar:
+        del datos["ocupados"][usuario_a_borrar] # Lo borramos por su ID
         guardar_datos(datos)
         await interaction.response.send_message(f"🗑️ {personaje} ha sido liberado.")
     else:
@@ -120,7 +128,8 @@ async def po_list(interaction: discord.Interaction):
     if not datos["ocupados"]:
         await interaction.response.send_message("No hay ningún personaje ocupado todavía.")
     else:
-        lista = "\n".join([f"• {p}" for p in datos["ocupados"]])
+        # Extraemos el personaje y mencionamos al usuario gracias a su ID guardado
+        lista = "\n".join([f"• **{pj}** (Usuario: <@{uid}>)" for uid, pj in datos["ocupados"].items()])
         await interaction.response.send_message(f"**🎭 Personajes Ocupados:**\n{lista}")
 
 # --- COMANDOS: DESEADOS (LL) ---
