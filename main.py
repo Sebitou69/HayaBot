@@ -181,4 +181,4 @@ async def check_actividad(interaction: discord.Interaction):
 
 # IMPORTANTE 3: Pon tu Token real aquí
 token = os.getenv('TOKEN')
-bot.run('token')
+bot.run(token)
