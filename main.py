@@ -16,9 +16,22 @@ def inicializar_db():
         print(f"✅ Archivo {DB_FILE} creado con éxito.")
 
 def cargar_datos():
-    inicializar_db() # Obligamos a revisar que el archivo exista antes de leer
+    inicializar_db()
     with open(DB_FILE, 'r') as f:
-        return json.load(f)
+        try:
+            datos = json.load(f)
+        except:
+            datos = {"ocupados": {}, "deseados": {}, "actividad": {}}
+    
+    # VALIDACIÓN DINÁMICA: Si algo es una lista y debe ser diccionario, lo arreglamos
+    if not isinstance(datos.get("ocupados"), dict):
+        datos["ocupados"] = {}
+    if not isinstance(datos.get("deseados"), dict):
+        datos["deseados"] = {}
+    if not isinstance(datos.get("actividad"), dict):
+        datos["actividad"] = {}
+        
+    return datos
 
 def guardar_datos(datos):
     with open(DB_FILE, 'w') as f:
@@ -154,22 +167,37 @@ async def po_list(interaction: discord.Interaction):
 
 # --- COMANDOS: DESEADOS (LL) ---
 # --- COMANDOS: DESEADOS (LL) ---
-@bot.tree.command(name="ll_add", description="Añade un personaje y quién lo desea a la lista")
+@bot.tree.command(name="ll_add", description="Añade un personaje y quién lo desea")
 async def ll_add(interaction: discord.Interaction, personaje: str, usuario: discord.Member):
     datos = cargar_datos()
-    pj = personaje.title() 
+    pj = personaje.title()
     
-    # Verificamos si ya alguien lo tiene
+    # --- LÍNEA DE SEGURIDAD ---
+    if not isinstance(datos.get("deseados"), dict):
+        datos["deseados"] = {} 
+    # --------------------------
+
     if pj in datos["ocupados"].values():
-        return await interaction.response.send_message(f"⚠️ {pj} ya está en uso por alguien más.", ephemeral=True)
-        
-    if pj in datos["deseados"]:
-        return await interaction.response.send_message(f"❌ {pj} ya está en la lista de deseados.", ephemeral=True)
+        return await interaction.response.send_message(f"⚠️ {pj} ya está ocupado.", ephemeral=True)
     
-    # Guardamos el Personaje y el Nombre del usuario que lo quiere
     datos["deseados"][pj] = usuario.display_name
     guardar_datos(datos)
-    await interaction.response.send_message(f"✨ **{pj}** ha sido añadido a la Wishlist (Deseado por {usuario.display_name}).")
+    await interaction.response.send_message(f"✨ **{pj}** añadido (Deseado por {usuario.display_name}).")
+
+@bot.tree.command(name="ll_list", description="Muestra la wishlist")
+async def ll_list(interaction: discord.Interaction):
+    datos = cargar_datos()
+    
+    # --- LÍNEA DE SEGURIDAD ---
+    if not isinstance(datos.get("deseados"), dict):
+        datos["deseados"] = {}
+    # --------------------------
+
+    if not datos["deseados"]:
+        return await interaction.response.send_message("La lista de deseados está vacía.")
+    
+    lista = "\n".join([f"• **{pj}** (Deseado por {user})" for pj, user in datos["deseados"].items()])
+    await interaction.response.send_message(f"**✨ Personajes Buscados:**\n{lista}")
 
 @bot.tree.command(name="ll_del", description="Elimina un personaje de la lista de deseados")
 async def ll_del(interaction: discord.Interaction, personaje: str):
@@ -182,16 +210,6 @@ async def ll_del(interaction: discord.Interaction, personaje: str):
         await interaction.response.send_message(f"🗑️ {pj} ya no está en la Wishlist.")
     else:
         await interaction.response.send_message(f"⚠️ {pj} no estaba en la Wishlist.", ephemeral=True)
-
-@bot.tree.command(name="ll_list", description="Muestra todos los personajes deseados y quién los busca")
-async def ll_list(interaction: discord.Interaction):
-    datos = cargar_datos()
-    if not datos["deseados"]:
-        await interaction.response.send_message("La lista de deseados está vacía.")
-    else:
-        # Construimos la lista mostrando "Personaje (Deseado por Usuario)"
-        lista = "\n".join([f"⭐ **{pj}** (Deseado por {user})" for pj, user in datos["deseados"].items()])
-        await interaction.response.send_message(f"**✨ Personajes Buscados (Wishlist):**\n{lista}")
 
 # --- COMANDO NUEVO: RASTREADOR MANUAL ---
 @bot.tree.command(name="check_actividad", description="[Admin] Muestra los días de inactividad de los usuarios")
