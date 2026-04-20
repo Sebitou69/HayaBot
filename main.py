@@ -5,7 +5,24 @@ import os
 from datetime import datetime
 
 # --- BASE DE DATOS ---
+# --- BASE DE DATOS ---
 DB_FILE = 'personajes.json'
+
+def inicializar_db():
+    if not os.path.exists(DB_FILE):
+        with open(DB_FILE, 'w') as f:
+            # Ahora deseados también es un diccionario
+            json.dump({"ocupados": {}, "deseados": {}, "actividad": {}}, f, indent=4)
+        print(f"✅ Archivo {DB_FILE} creado con éxito.")
+
+def cargar_datos():
+    inicializar_db() # Obligamos a revisar que el archivo exista antes de leer
+    with open(DB_FILE, 'r') as f:
+        return json.load(f)
+
+def guardar_datos(datos):
+    with open(DB_FILE, 'w') as f:
+        json.dump(datos, f, indent=4)
 
 # Inicializamos el JSON con la estructura completa si no existe
 if not os.path.exists(DB_FILE):
@@ -31,20 +48,23 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 async def on_ready():
     print(f'Bot conectado como {bot.user}')
     
-    # Arranca el bucle de revisión de inactividad
+    # 1. Crea la base de datos inmediatamente al encender
+    inicializar_db() 
+    
+    # 2. Arranca el bucle de revisión de inactividad
     if not revisar_inactivos.is_running():
         revisar_inactivos.start()
         print("Módulo de inactividad automático iniciado.")
         
     try:
-        # IMPORTANTE 1: Reemplaza con el ID de TU servidor
+        # IMPORTANTE: Reemplaza con el ID de TU servidor
         servidor = discord.Object(id=1495565448601927821) 
         
         bot.tree.copy_global_to(guild=servidor)
         synced = await bot.tree.sync(guild=servidor)
         print(f"Sincronizados {len(synced)} comandos en el servidor.")
     except Exception as e:
-        print(e)
+        print(f"Error sincronizando: {e}")
 
 @bot.event
 async def on_message(message):
@@ -133,37 +153,44 @@ async def po_list(interaction: discord.Interaction):
         await interaction.response.send_message(f"**🎭 Personajes Ocupados:**\n{lista}")
 
 # --- COMANDOS: DESEADOS (LL) ---
-@bot.tree.command(name="ll_add", description="Añade un personaje a la lista de deseados")
-async def ll_add(interaction: discord.Interaction, personaje: str):
+# --- COMANDOS: DESEADOS (LL) ---
+@bot.tree.command(name="ll_add", description="Añade un personaje y quién lo desea a la lista")
+async def ll_add(interaction: discord.Interaction, personaje: str, usuario: discord.Member):
     datos = cargar_datos()
-    personaje = personaje.title() 
-    if personaje in datos["deseados"]:
-        await interaction.response.send_message(f"❌ {personaje} ya está en la lista de deseados.", ephemeral=True)
-    elif personaje in datos["ocupados"]:
-        await interaction.response.send_message(f"⚠️ {personaje} ya está en uso.", ephemeral=True)
-    else:
-        datos["deseados"].append(personaje)
-        guardar_datos(datos)
-        await interaction.response.send_message(f"✨ {personaje} ha sido añadido a la Wishlist.")
+    pj = personaje.title() 
+    
+    # Verificamos si ya alguien lo tiene
+    if pj in datos["ocupados"].values():
+        return await interaction.response.send_message(f"⚠️ {pj} ya está en uso por alguien más.", ephemeral=True)
+        
+    if pj in datos["deseados"]:
+        return await interaction.response.send_message(f"❌ {pj} ya está en la lista de deseados.", ephemeral=True)
+    
+    # Guardamos el Personaje y el Nombre del usuario que lo quiere
+    datos["deseados"][pj] = usuario.display_name
+    guardar_datos(datos)
+    await interaction.response.send_message(f"✨ **{pj}** ha sido añadido a la Wishlist (Deseado por {usuario.display_name}).")
 
 @bot.tree.command(name="ll_del", description="Elimina un personaje de la lista de deseados")
 async def ll_del(interaction: discord.Interaction, personaje: str):
     datos = cargar_datos()
-    personaje = personaje.title()
-    if personaje in datos["deseados"]:
-        datos["deseados"].remove(personaje)
+    pj = personaje.title()
+    
+    if pj in datos["deseados"]:
+        del datos["deseados"][pj] # Lo borramos del diccionario
         guardar_datos(datos)
-        await interaction.response.send_message(f"🗑️ {personaje} ya no está en la Wishlist.")
+        await interaction.response.send_message(f"🗑️ {pj} ya no está en la Wishlist.")
     else:
-        await interaction.response.send_message(f"⚠️ {personaje} no estaba en la Wishlist.", ephemeral=True)
+        await interaction.response.send_message(f"⚠️ {pj} no estaba en la Wishlist.", ephemeral=True)
 
-@bot.tree.command(name="ll_list", description="Muestra todos los personajes deseados")
+@bot.tree.command(name="ll_list", description="Muestra todos los personajes deseados y quién los busca")
 async def ll_list(interaction: discord.Interaction):
     datos = cargar_datos()
     if not datos["deseados"]:
         await interaction.response.send_message("La lista de deseados está vacía.")
     else:
-        lista = "\n".join([f"⭐ {p}" for p in datos["deseados"]])
+        # Construimos la lista mostrando "Personaje (Deseado por Usuario)"
+        lista = "\n".join([f"⭐ **{pj}** (Deseado por {user})" for pj, user in datos["deseados"].items()])
         await interaction.response.send_message(f"**✨ Personajes Buscados (Wishlist):**\n{lista}")
 
 # --- COMANDO NUEVO: RASTREADOR MANUAL ---
