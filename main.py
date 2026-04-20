@@ -143,7 +143,6 @@ async def purga_inactivos(interaction: discord.Interaction):
         await interaction.response.send_message("✅ No hay usuarios que cumplan el criterio de expulsión (7 días).")
 
 # --- COMANDOS: OCUPADOS (PO) ---
-# --- COMANDOS: OCUPADOS (PO) ---
 @bot.tree.command(name="po_add", description="[Admin] Vincula un personaje a un usuario")
 @commands.has_permissions(administrator=True)
 async def po_add(interaction: discord.Interaction, personaje: str, usuario: discord.Member):
@@ -151,29 +150,32 @@ async def po_add(interaction: discord.Interaction, personaje: str, usuario: disc
     pj_formateado = personaje.title()
     user_id = str(usuario.id)
     
-    # 1. Lógica de mención al interesado (Wishlist) buscando por nombre
+    # --- FIX BUG: Verificar si el personaje YA está ocupado ---
+    for uid, pj in datos["ocupados"].items():
+        if pj == pj_formateado:
+            return await interaction.response.send_message(
+                f"⚠️ ¡No se pudo procesar la tarea! **{pj_formateado}** ya está siendo ocupado por <@{uid}>.", 
+                ephemeral=True
+            )
+            
+    # Si pasa la validación, procedemos con la lógica de wishlist buscando por nombre
     mencion_interesado = ""
     if pj_formateado in datos.get("deseados", {}):
         nombre_guardado = datos["deseados"][pj_formateado]
-        
-        # Magia aquí: Buscamos al usuario en el servidor por su display_name
         miembro_encontrado = discord.utils.get(interaction.guild.members, display_name=nombre_guardado)
         
         if miembro_encontrado:
-            # Si lo encuentra, usamos su ID para el ping real
             mencion_interesado = f"\n🔔 {miembro_encontrado.mention}, ¡el personaje que esperabas ha sido asignado!"
         else:
-            # Si el usuario se cambió el nombre o se fue del server, avisamos sin ping
             mencion_interesado = f"\n🔔 (El personaje era deseado por **{nombre_guardado}**, pero no lo encontré para etiquetarlo)."
             
-        # Borrar de la wishlist una vez asignado
         del datos["deseados"][pj_formateado]
 
-    # 2. Guardar en la base de datos
+    # Guardar en la base de datos
     datos["ocupados"][user_id] = pj_formateado
     guardar_datos(datos)
     
-    # 3. Cambio de apodo automático
+    # Cambio de apodo automático
     try:
         await usuario.edit(nick=pj_formateado)
         status_nick = f"✅ Apodo actualizado a **{pj_formateado}**."
@@ -182,7 +184,6 @@ async def po_add(interaction: discord.Interaction, personaje: str, usuario: disc
     except Exception as e:
         status_nick = f"⚠️ Error al cambiar apodo: {e}"
 
-    # Respuesta final combinada
     await interaction.response.send_message(
         f"🎭 **{pj_formateado}** asignado con éxito a {usuario.mention}.\n{status_nick}{mencion_interesado}"
     )
@@ -192,16 +193,36 @@ async def po_del(interaction: discord.Interaction, personaje: str):
     datos = cargar_datos()
     personaje = personaje.title()
     usuario_a_borrar = None
+    
+    # Buscar qué usuario tiene a ese personaje
     for uid, pj in datos["ocupados"].items():
         if pj == personaje:
             usuario_a_borrar = uid
             break
+            
     if usuario_a_borrar:
+        # 1. Lo borramos de la base de datos
         del datos["ocupados"][usuario_a_borrar]
         guardar_datos(datos)
-        await interaction.response.send_message(f"🗑️ {personaje} ha sido liberado.")
+        
+        # 2. --- NUEVA FUNCIÓN: Restablecer apodo ---
+        status_nick = ""
+        try:
+            # Buscamos al usuario de forma segura (por si no está en caché)
+            miembro = await interaction.guild.fetch_member(int(usuario_a_borrar))
+            # Pasarle 'None' a nick le quita el apodo y lo devuelve a su nombre original
+            await miembro.edit(nick=None) 
+            status_nick = f"\n✅ Se ha restablecido el apodo de {miembro.mention}."
+        except discord.NotFound:
+            status_nick = "\n(El usuario ya no está en el servidor, base de datos actualizada)."
+        except discord.Forbidden:
+            status_nick = "\n⚠️ No pude quitarle el apodo (Permisos insuficientes o rol más alto que el mío)."
+        except Exception as e:
+            status_nick = f"\n⚠️ Error al quitar apodo: {e}"
+            
+        await interaction.response.send_message(f"🗑️ **{personaje}** ha sido liberado.{status_nick}")
     else:
-        await interaction.response.send_message(f"⚠️ {personaje} no está en la lista de ocupados.", ephemeral=True)
+        await interaction.response.send_message(f"⚠️ **{personaje}** no está en la lista de ocupados.", ephemeral=True)
 
 @bot.tree.command(name="po_list", description="Muestra todos los personajes ocupados")
 async def po_list(interaction: discord.Interaction):
