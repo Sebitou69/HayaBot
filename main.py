@@ -147,11 +147,34 @@ async def purga_inactivos(interaction: discord.Interaction):
 @commands.has_permissions(administrator=True)
 async def po_add(interaction: discord.Interaction, personaje: str, usuario: discord.Member):
     datos = cargar_datos()
-    personaje = personaje.title()
+    pj_formateado = personaje.title()
     user_id = str(usuario.id)
-    datos["ocupados"][user_id] = personaje
+    
+    # 1. Lógica de mención al interesado (Wishlist)
+    mencion_interesado = ""
+    if pj_formateado in datos.get("deseados", {}):
+        interesado_id = datos["deseados"][pj_formateado]
+        mencion_interesado = f"\n🔔 <@{interesado_id}>, ¡el personaje que esperabas ha sido asignado!"
+        # Opcional: Borrar de la wishlist una vez asignado
+        del datos["deseados"][pj_formateado]
+
+    # 2. Guardar en la base de datos
+    datos["ocupados"][user_id] = pj_formateado
     guardar_datos(datos)
-    await interaction.response.send_message(f"✅ **{personaje}** ha sido asignado a {usuario.mention}.")
+    
+    # 3. Cambio de apodo automático
+    try:
+        await usuario.edit(nick=pj_formateado)
+        status_nick = f"✅ Apodo actualizado a **{pj_formateado}**."
+    except discord.Forbidden:
+        status_nick = "⚠️ No pude cambiar el apodo (Permisos insuficientes o el usuario es Admin/Owner)."
+    except Exception as e:
+        status_nick = f"⚠️ Error al cambiar apodo: {e}"
+
+    # Respuesta final combinada
+    await interaction.response.send_message(
+        f"🎭 **{pj_formateado}** asignado con éxito a {usuario.mention}.\n{status_nick}{mencion_interesado}"
+    )
 
 @bot.tree.command(name="po_del", description="Elimina un personaje de la lista de ocupados")
 async def po_del(interaction: discord.Interaction, personaje: str):
