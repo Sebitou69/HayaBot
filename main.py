@@ -176,25 +176,6 @@ async def po_list(interaction: discord.Interaction):
         await interaction.response.send_message(f"**🎭 Personajes Ocupados:**\n{lista}")
 
 # --- COMANDOS: DESEADOS (LL) ---
-# --- COMANDOS: DESEADOS (LL) ---
-@bot.tree.command(name="ll_add", description="Añade un personaje y quién lo desea")
-async def ll_add(interaction: discord.Interaction, personaje: str, usuario: discord.Member):
-    datos = cargar_datos()
-    pj = personaje.title()
-    
-    # --- LÍNEA DE SEGURIDAD ---
-    if not isinstance(datos.get("deseados"), dict):
-        datos["deseados"] = {} 
-    # --------------------------
-
-    if pj in datos["ocupados"].values():
-        return await interaction.response.send_message(f"⚠️ {pj} ya está ocupado.", ephemeral=True)
-    
-    datos["deseados"][pj] = usuario.display_name
-    guardar_datos(datos)
-    await interaction.response.send_message(f"✨ **{pj}** añadido (Deseado por {usuario.display_name}).")
-
-# --- COMANDOS: DESEADOS (LL) ---
 @bot.tree.command(name="ll_add", description="Añade un personaje y quién lo desea")
 async def ll_add(interaction: discord.Interaction, personaje: str, usuario: discord.Member):
     datos = cargar_datos()
