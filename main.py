@@ -106,7 +106,7 @@ async def revisar_inactivos():
         return
         
     # IMPORTANTE 2: Reemplaza con el ID del canal donde el bot mandará las purgas (ej. #anuncios)
-    canal_avisos = bot.get_channel(1495589358852505630) 
+    canal_avisos = bot.get_channel(1495579886557860032) 
     if not canal_avisos:
         print("Error: No se encontró el canal de avisos.")
         return
@@ -117,10 +117,20 @@ async def revisar_inactivos():
         ultima_fecha = datetime.fromisoformat(fecha_str)
         diferencia = (hoy - ultima_fecha).days
         
-        if diferencia == 7:
-            await canal_avisos.send(f"⚠️ <@{user_id_str}>, llevas **7 días** inactivo. ¡Recuerda participar para mantener tu personaje!")
-        elif diferencia >= 14:
-            await canal_avisos.send(f"❌ <@{user_id_str}> ha alcanzado los **14 días** de inactividad. Su personaje queda libre.")
+        if diferencia == 5:
+            await canal_avisos.send(f"⚠️ <@{user_id_str}>, llevas **5 días** inactivo. ¡Recuerda participar para mantener tu personaje!")
+        elif diferencia >= 7:
+            await canal_avisos.send(f"❌ <@{user_id_str}> ha alcanzado los **7 días** de inactividad. Su personaje queda libre.")
+
+@bot.tree.command(name="backup", description="[Admin] Descarga el archivo de base de datos")
+@commands.has_permissions(administrator=True)
+async def backup(interaction: discord.Interaction):
+    if os.path.exists(DB_FILE):
+        # Enviamos el archivo tal cual vive en el servidor
+        archivo = discord.File(DB_FILE, filename="respaldo_personajes.json")
+        await interaction.response.send_message("📦 Aquí tienes el JSON actual:", file=archivo, ephemeral=True)
+    else:
+        await interaction.response.send_message("❌ El archivo aún no se ha creado.", ephemeral=True)
 
 # --- COMANDOS: OCUPADOS (PO) ---
 @bot.tree.command(name="po_add", description="[Admin] Vincula un personaje a un usuario")
@@ -184,20 +194,32 @@ async def ll_add(interaction: discord.Interaction, personaje: str, usuario: disc
     guardar_datos(datos)
     await interaction.response.send_message(f"✨ **{pj}** añadido (Deseado por {usuario.display_name}).")
 
-@bot.tree.command(name="ll_list", description="Muestra la wishlist")
+# --- COMANDOS: DESEADOS (LL) ---
+@bot.tree.command(name="ll_add", description="Añade un personaje y quién lo desea")
+async def ll_add(interaction: discord.Interaction, personaje: str, usuario: discord.Member):
+    datos = cargar_datos()
+    pj = personaje.title()
+    
+    # Verificamos disponibilidad
+    if pj in datos["ocupados"].values():
+        return await interaction.response.send_message(f"⚠️ {pj} ya está ocupado.", ephemeral=True)
+    
+    # Guardamos Personaje como Llave y el Nombre (Display Name) como Valor
+    # El 'display_name' es el que el usuario tiene en el servidor de rol
+    datos["deseados"][pj] = usuario.display_name
+    guardar_datos(datos)
+    await interaction.response.send_message(f"✨ **{pj}** añadido a la lista (Deseado por: {usuario.display_name}).")
+
+@bot.tree.command(name="ll_list", description="Muestra la lista de deseados")
 async def ll_list(interaction: discord.Interaction):
     datos = cargar_datos()
     
-    # --- LÍNEA DE SEGURIDAD ---
-    if not isinstance(datos.get("deseados"), dict):
-        datos["deseados"] = {}
-    # --------------------------
-
-    if not datos["deseados"]:
+    if not datos.get("deseados"):
         return await interaction.response.send_message("La lista de deseados está vacía.")
     
-    lista = "\n".join([f"• **{pj}** (Deseado por {user})" for pj, user in datos["deseados"].items()])
-    await interaction.response.send_message(f"**✨ Personajes Buscados:**\n{lista}")
+    # Formateamos la salida para que sea limpia: Personaje (Deseado por Nombre)
+    lineas = [f"• **{pj}** (Deseado por {nombre})" for pj, nombre in datos["deseados"].items()]
+    await interaction.response.send_message("**✨ Personajes Buscados:**\n" + "\n".join(lineas))
 
 @bot.tree.command(name="ll_del", description="Elimina un personaje de la lista de deseados")
 async def ll_del(interaction: discord.Interaction, personaje: str):
