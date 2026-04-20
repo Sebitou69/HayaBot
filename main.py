@@ -143,6 +143,7 @@ async def purga_inactivos(interaction: discord.Interaction):
         await interaction.response.send_message("✅ No hay usuarios que cumplan el criterio de expulsión (7 días).")
 
 # --- COMANDOS: OCUPADOS (PO) ---
+# --- COMANDOS: OCUPADOS (PO) ---
 @bot.tree.command(name="po_add", description="[Admin] Vincula un personaje a un usuario")
 @commands.has_permissions(administrator=True)
 async def po_add(interaction: discord.Interaction, personaje: str, usuario: discord.Member):
@@ -150,12 +151,22 @@ async def po_add(interaction: discord.Interaction, personaje: str, usuario: disc
     pj_formateado = personaje.title()
     user_id = str(usuario.id)
     
-    # 1. Lógica de mención al interesado (Wishlist)
+    # 1. Lógica de mención al interesado (Wishlist) buscando por nombre
     mencion_interesado = ""
     if pj_formateado in datos.get("deseados", {}):
-        interesado_id = datos["deseados"][pj_formateado]
-        mencion_interesado = f"\n🔔 <@{interesado_id}>, ¡el personaje que esperabas ha sido asignado!"
-        # Opcional: Borrar de la wishlist una vez asignado
+        nombre_guardado = datos["deseados"][pj_formateado]
+        
+        # Magia aquí: Buscamos al usuario en el servidor por su display_name
+        miembro_encontrado = discord.utils.get(interaction.guild.members, display_name=nombre_guardado)
+        
+        if miembro_encontrado:
+            # Si lo encuentra, usamos su ID para el ping real
+            mencion_interesado = f"\n🔔 {miembro_encontrado.mention}, ¡el personaje que esperabas ha sido asignado!"
+        else:
+            # Si el usuario se cambió el nombre o se fue del server, avisamos sin ping
+            mencion_interesado = f"\n🔔 (El personaje era deseado por **{nombre_guardado}**, pero no lo encontré para etiquetarlo)."
+            
+        # Borrar de la wishlist una vez asignado
         del datos["deseados"][pj_formateado]
 
     # 2. Guardar en la base de datos
