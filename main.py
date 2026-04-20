@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 
 # --- BASE DE DATOS ---
-DB_FILE = 'personajes.json'
+DB_FILE = 'data/personajes.json'
 
 def inicializar_db():
     if not os.path.exists(DB_FILE):
@@ -111,8 +111,7 @@ async def check_actividad(interaction: discord.Interaction):
     for user_id_str, fecha_str in datos["actividad"].items():
         ultima_fecha = datetime.fromisoformat(fecha_str)
         dias = (hoy - ultima_fecha).days
-        if dias > 0:
-            reporte.append(f"<@{user_id_str}>: inactivo hace **{dias}** días.")
+        reporte.append(f"<@{user_id_str}>: inactivo hace **{dias}** días.")
     if not reporte:
         await interaction.response.send_message("✅ Todos los usuarios registrados han estado activos hoy.", ephemeral=True)
     else:
