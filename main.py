@@ -90,16 +90,18 @@ async def revisar_inactivos():
             await canal_avisos.send(f"❌ <@{user_id_str}> ha alcanzado los **14 días** de inactividad. Su personaje queda libre.")
 
 # --- COMANDOS: OCUPADOS (PO) ---
-@bot.tree.command(name="po_add", description="Añade un personaje a la lista de ocupados")
-async def po_add(interaction: discord.Interaction, personaje: str):
+@bot.tree.command(name="po_add", description="[Admin] Vincula un personaje a un usuario")
+@commands.has_permissions(administrator=True)
+async def po_add(interaction: discord.Interaction, personaje: str, usuario: discord.Member):
     datos = cargar_datos()
-    personaje = personaje.title() 
-    if personaje in datos["ocupados"]:
-        await interaction.response.send_message(f"❌ {personaje} ya está ocupado.", ephemeral=True)
-    else:
-        datos["ocupados"].append(personaje)
-        guardar_datos(datos)
-        await interaction.response.send_message(f"✅ {personaje} ha sido añadido a los personajes ocupados.")
+    personaje = personaje.title()
+    user_id = str(usuario.id)
+    
+    # Guardamos el par Usuario: Personaje
+    datos["ocupados"][user_id] = personaje
+    guardar_datos(datos)
+    
+    await interaction.response.send_message(f"✅ **{personaje}** ha sido asignado a {usuario.mention}.")
 
 @bot.tree.command(name="po_del", description="Elimina un personaje de la lista de ocupados")
 async def po_del(interaction: discord.Interaction, personaje: str):
@@ -178,6 +180,39 @@ async def check_actividad(interaction: discord.Interaction):
         await interaction.response.send_message("✅ Todos los usuarios registrados han estado activos hoy.", ephemeral=True)
     else:
         await interaction.response.send_message("**📊 Reporte de Inactividad:**\n" + "\n".join(reporte), ephemeral=True)
+
+@bot.tree.command(name="purgar", description="[Admin] Expulsa a los usuarios con 7 o más días de inactividad")
+@commands.has_permissions(administrator=True)
+async def purga_inactivos(interaction: discord.Interaction):
+    datos = cargar_datos()
+    hoy = datetime.now()
+    expulsados = []
+
+    # Revisamos la actividad
+    for user_id, fecha_str in list(datos["actividad"].items()):
+        ultima_fecha = datetime.fromisoformat(fecha_str)
+        if (hoy - ultima_fecha).days >= 7:
+            try:
+                # Intentamos expulsar de Discord
+                usuario_discord = await interaction.guild.fetch_member(int(user_id))
+                if usuario_discord:
+                    await usuario_discord.kick(reason="Inactividad prolongada (7 o más días)")
+                
+                # Limpiamos los datos del JSON
+                if user_id in datos["ocupados"]:
+                    del datos["ocupados"][user_id]
+                del datos["actividad"][user_id]
+                
+                expulsados.append(user_id)
+            except Exception as e:
+                print(f"No se pudo expulsar al ID {user_id}: {e}")
+
+    guardar_datos(datos)
+    
+    if expulsados:
+        await interaction.response.send_message(f"🔨 Se ha expulsado a {len(expulsados)} usuarios inactivos y se han liberado sus personajes.")
+    else:
+        await interaction.response.send_message("✅ No hay usuarios que cumplan el criterio de expulsión (7 días).")
 
 # IMPORTANTE 3: Pon tu Token real aquí
 token = os.getenv('TOKEN')
