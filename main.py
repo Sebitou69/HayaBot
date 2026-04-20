@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 
 # --- BASE DE DATOS ---
-DB_FILE = 'data/personajes.json'
+DB_FILE = '/app/data/personajes.json'
 
 def inicializar_db():
     if not os.path.exists(DB_FILE):
