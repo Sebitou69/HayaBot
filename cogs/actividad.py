@@ -10,8 +10,8 @@ ID_CANAL_GENERAL = 1495579886557860032  # Reemplaza con el ID de tu canal genera
 ID_CANAL_AVISOS = 1495579886557860032   # Canal donde el bot avisa de los 5 y 7 días (puede ser el mismo)
 
 ROLES_NIVELES = {
-    5: 123456789012345678,   # Nivel 5: Spark
-    15: 123456789012345678,  # Nivel 15: Orbit
+    10: 123456789012345678,   # Nivel 10: Spark
+    20: 123456789012345678,  # Nivel 20: Orbit
     30: 123456789012345678,  # Nivel 30: Comet
     40: 123456789012345678,  # Nivel 40: Supernova
     50: 123456789012345678   # Nivel 50: Zenith
